@@ -1,12 +1,25 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const estado = searchParams.get('estado');
+  const conf = searchParams.get('conf');
+  const notificadoRef = useRef(false);
+
+  useEffect(() => {
+    if (estado === 'exitoso' && conf && !notificadoRef.current) {
+      notificadoRef.current = true;
+      fetch('/api/notificar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numero_confirmacion: conf }),
+      }).catch(console.error);
+    }
+  }, [estado, conf]);
 
   if (estado === 'cancelado') {
     return (
