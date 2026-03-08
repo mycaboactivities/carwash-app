@@ -97,7 +97,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: clipResponse.payment_request_url });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('Error creando checkout Clip:', errMsg);
-    return NextResponse.json({ error: 'Error interno del servidor', detail: errMsg }, { status: 500 });
+    const errStack = error instanceof Error ? error.stack : '';
+    console.error('Error creando checkout Clip:', errMsg, errStack);
+    return NextResponse.json({
+      error: 'Error interno del servidor',
+      detail: errMsg,
+      hasClipKey: !!process.env.CLIP_API_KEY,
+      hasClipSecret: !!process.env.CLIP_API_SECRET,
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || 'NOT SET',
+    }, { status: 500 });
   }
 }
