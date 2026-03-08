@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { enviarEmailConfirmacion, enviarEmailAdminNuevaReserva } from '@/lib/notifications';
 
+// GET para debug - visita /api/notificar?conf=CW-XXXX-XXXX en el navegador
+export async function GET(request: NextRequest) {
+  const conf = request.nextUrl.searchParams.get('conf');
+
+  return NextResponse.json({
+    hasGmailUser: !!process.env.GMAIL_USER,
+    hasGmailPass: !!process.env.GMAIL_APP_PASSWORD,
+    hasAdminEmail: !!process.env.ADMIN_EMAIL,
+    gmailUser: process.env.GMAIL_USER ? process.env.GMAIL_USER.slice(0, 5) + '***' : 'NOT SET',
+    conf: conf || 'no conf param',
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { numero_confirmacion } = await request.json();
@@ -18,19 +31,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !reserva) {
-      return NextResponse.json({ error: 'Reserva no encontrada' }, { status: 404 });
+      return NextResponse.json({ error: 'Reserva no encontrada', detail: error?.message }, { status: 404 });
     }
-
-    // Evitar enviar duplicados - solo enviar si no se ha notificado antes
-    if (reserva.notificado) {
-      return NextResponse.json({ ok: true, message: 'Ya notificado previamente' });
-    }
-
-    // Marcar como notificado
-    await supabase
-      .from('reservas')
-      .update({ notificado: true })
-      .eq('id', reserva.id);
 
     // Enviar emails
     const [emailCliente, emailAdmin] = await Promise.allSettled([
@@ -38,13 +40,24 @@ export async function POST(request: NextRequest) {
       enviarEmailAdminNuevaReserva(reserva),
     ]);
 
+    const clienteResult = emailCliente.status === 'fulfilled'
+      ? { status: 'enviado', error: emailCliente.value.error ? String(emailCliente.value.error) : null }
+      : { status: 'error', error: String((emailCliente as PromiseRejectedResult).reason) };
+
+    const adminResult = emailAdmin.status === 'fulfilled'
+      ? { status: 'enviado', error: emailAdmin.value.error ? String(emailAdmin.value.error) : null }
+      : { status: 'error', error: String((emailAdmin as PromiseRejectedResult).reason) };
+
     return NextResponse.json({
       ok: true,
-      emailCliente: emailCliente.status === 'fulfilled' ? 'enviado' : 'error',
-      emailAdmin: emailAdmin.status === 'fulfilled' ? 'enviado' : 'error',
+      emailCliente: clienteResult,
+      emailAdmin: adminResult,
+      hasGmailUser: !!process.env.GMAIL_USER,
+      hasGmailPass: !!process.env.GMAIL_APP_PASSWORD,
     });
   } catch (error) {
-    console.error('Error enviando notificaciones:', error);
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('Error enviando notificaciones:', errMsg);
+    return NextResponse.json({ error: 'Error interno', detail: errMsg }, { status: 500 });
   }
 }
