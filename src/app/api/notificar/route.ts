@@ -27,21 +27,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Reserva no encontrada', detail: error?.message, conf }, { status: 404 });
     }
 
-    const [emailCliente, emailAdmin] = await Promise.allSettled([
+    const [emailCliente, emailAdmin, whatsapp] = await Promise.allSettled([
       enviarEmailConfirmacion(reserva),
       enviarEmailAdminNuevaReserva(reserva),
+      enviarWhatsAppConfirmacion(reserva),
     ]);
+
+    const res = (r: PromiseSettledResult<{ data: unknown; error: unknown }>) =>
+      r.status === 'fulfilled'
+        ? { status: r.value.error ? 'error' : 'ok', error: r.value.error ? String(r.value.error) : null }
+        : { status: 'fail', error: String((r as PromiseRejectedResult).reason) };
 
     return NextResponse.json({
       ok: true,
       conf,
       clienteEmail: reserva.cliente_email,
-      emailCliente: emailCliente.status === 'fulfilled'
-        ? { status: 'ok', error: emailCliente.value.error ? String(emailCliente.value.error) : null }
-        : { status: 'fail', error: String((emailCliente as PromiseRejectedResult).reason) },
-      emailAdmin: emailAdmin.status === 'fulfilled'
-        ? { status: 'ok', error: emailAdmin.value.error ? String(emailAdmin.value.error) : null }
-        : { status: 'fail', error: String((emailAdmin as PromiseRejectedResult).reason) },
+      clienteTelefono: reserva.cliente_telefono,
+      hasTwilioSid: !!process.env.TWILIO_ACCOUNT_SID,
+      hasTwilioToken: !!process.env.TWILIO_AUTH_TOKEN,
+      emailCliente: res(emailCliente),
+      emailAdmin: res(emailAdmin),
+      whatsapp: res(whatsapp),
     });
   } catch (error) {
     return NextResponse.json({ error: 'Error', detail: String(error) }, { status: 500 });
