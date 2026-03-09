@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { enviarEmailConfirmacion, enviarEmailAdminNuevaReserva } from '@/lib/notifications';
+import { enviarEmailConfirmacion, enviarEmailAdminNuevaReserva, enviarWhatsAppConfirmacion } from '@/lib/notifications';
 
 // GET para debug y test - visita /api/notificar?conf=CW-XXXX-XXXX en el navegador
 export async function GET(request: NextRequest) {
@@ -75,26 +75,23 @@ export async function POST(request: NextRequest) {
         .eq('id', reserva.id);
     }
 
-    // Enviar emails
-    const [emailCliente, emailAdmin] = await Promise.allSettled([
+    // Enviar emails y WhatsApp
+    const [emailCliente, emailAdmin, whatsapp] = await Promise.allSettled([
       enviarEmailConfirmacion(reserva),
       enviarEmailAdminNuevaReserva(reserva),
+      enviarWhatsAppConfirmacion(reserva),
     ]);
 
-    const clienteResult = emailCliente.status === 'fulfilled'
-      ? { status: 'enviado', error: emailCliente.value.error ? String(emailCliente.value.error) : null }
-      : { status: 'error', error: String((emailCliente as PromiseRejectedResult).reason) };
-
-    const adminResult = emailAdmin.status === 'fulfilled'
-      ? { status: 'enviado', error: emailAdmin.value.error ? String(emailAdmin.value.error) : null }
-      : { status: 'error', error: String((emailAdmin as PromiseRejectedResult).reason) };
+    const resultado = (r: PromiseSettledResult<{ data: unknown; error: unknown }>) =>
+      r.status === 'fulfilled'
+        ? { status: r.value.error ? 'error' : 'enviado', error: r.value.error ? String(r.value.error) : null }
+        : { status: 'error', error: String((r as PromiseRejectedResult).reason) };
 
     return NextResponse.json({
       ok: true,
-      emailCliente: clienteResult,
-      emailAdmin: adminResult,
-      hasGmailUser: !!process.env.GMAIL_USER,
-      hasGmailPass: !!process.env.GMAIL_APP_PASSWORD,
+      emailCliente: resultado(emailCliente),
+      emailAdmin: resultado(emailAdmin),
+      whatsapp: resultado(whatsapp),
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
