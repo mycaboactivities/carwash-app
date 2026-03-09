@@ -84,11 +84,26 @@ export async function enviarEmailAdminNuevaReserva(reserva: Reserva) {
   }
 }
 
+function formatWhatsAppNumber(phone: string): string {
+  // Limpiar todo excepto digitos
+  let digits = phone.replace(/\D/g, '');
+  // Si empieza con 52 pero no tiene el 1 despues (numeros mexicanos moviles necesitan +521)
+  if (digits.startsWith('52') && digits.length === 12 && !digits.startsWith('521')) {
+    digits = '521' + digits.slice(2);
+  }
+  // Si no tiene codigo de pais, asumir Mexico
+  if (digits.length === 10) {
+    digits = '521' + digits;
+  }
+  return `whatsapp:+${digits}`;
+}
+
 export async function enviarWhatsAppConfirmacion(reserva: Reserva) {
   try {
+    const toNumber = formatWhatsAppNumber(reserva.cliente_telefono);
     const message = await getTwilioClient().messages.create({
       from: process.env.TWILIO_WHATSAPP_FROM!,
-      to: `whatsapp:${reserva.cliente_telefono}`,
+      to: toNumber,
       body: `*CarWash Pro - Reserva Confirmada*\n\nHola ${reserva.cliente_nombre}! Tu reserva ha sido confirmada.\n\n*Detalles:*\nEdificio: ${reserva.edificio?.nombre || ''}\nPlan: ${reserva.plan?.nombre || ''}\nFecha: ${reserva.fecha}\nHora: ${reserva.hora_inicio}\nAuto: ${reserva.marca_auto} ${reserva.modelo_auto} ${reserva.color_auto}\nTotal: $${reserva.total_pagado.toFixed(2)} MXN\nConfirmacion: ${reserva.numero_confirmacion || 'N/A'}\n\nGracias por tu preferencia!`,
     });
     return { data: message, error: null };
