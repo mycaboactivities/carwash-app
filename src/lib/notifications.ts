@@ -101,8 +101,11 @@ function formatWhatsAppNumber(phone: string): string {
 export async function enviarWhatsAppConfirmacion(reserva: Reserva) {
   try {
     const toNumber = formatWhatsAppNumber(reserva.cliente_telefono);
+    // Asegurar que from siempre tenga el prefijo whatsapp:
+    const fromRaw = process.env.TWILIO_WHATSAPP_FROM || '+14155238886';
+    const fromNumber = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
     const message = await getTwilioClient().messages.create({
-      from: process.env.TWILIO_WHATSAPP_FROM!,
+      from: fromNumber,
       to: toNumber,
       body: `*CarWash Pro - Reserva Confirmada*\n\nHola ${reserva.cliente_nombre}! Tu reserva ha sido confirmada.\n\n*Detalles:*\nEdificio: ${reserva.edificio?.nombre || ''}\nPlan: ${reserva.plan?.nombre || ''}\nFecha: ${reserva.fecha}\nHora: ${reserva.hora_inicio}\nAuto: ${reserva.marca_auto} ${reserva.modelo_auto} ${reserva.color_auto}\nTotal: $${reserva.total_pagado.toFixed(2)} MXN\nConfirmacion: ${reserva.numero_confirmacion || 'N/A'}\n\nGracias por tu preferencia!`,
     });
