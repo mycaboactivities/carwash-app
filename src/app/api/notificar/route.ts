@@ -67,6 +67,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Reserva no encontrada', detail: error?.message }, { status: 404 });
     }
 
+    // Actualizar estado a confirmada si estaba pendiente
+    if (reserva.estado === 'pendiente') {
+      await supabase
+        .from('reservas')
+        .update({ estado: 'confirmada' })
+        .eq('id', reserva.id);
+    }
+
     // Enviar emails
     const [emailCliente, emailAdmin] = await Promise.allSettled([
       enviarEmailConfirmacion(reserva),
